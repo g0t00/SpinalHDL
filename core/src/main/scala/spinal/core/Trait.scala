@@ -515,6 +515,13 @@ trait Nameable extends OwnableRef with ContextUser{
   def setName(name : String) : this.type = setName(name, false)
   def setName(name: String, weak: Boolean): this.type = setName(name, if(weak) USER_WEAK else USER_SET)
   def setName(name: String, namePriority: Byte): this.type = {
+    import scala.util.matching.Regex
+    val namePattern = "(?i)^[a-z]+(_?[a-z0-9])+$".r
+    // val namePattern = "(?i)^(_?[a-z0-9])+$".r
+    require(
+      (namePattern findFirstIn name).isDefined,
+      f"Name '$name' should contain only letters, digits or underscores. And must not include underscores in succession"
+    )
     if (isPriorityApplicable(namePriority)) {
       this.name = name
       mode = ABSOLUTE
