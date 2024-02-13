@@ -17,7 +17,7 @@ class NameTests extends SpinalAnyFunSuite {
       ),
       (
         "1_asd",
-        true
+        false
       )
     )
     for (vec <- vectors) {
