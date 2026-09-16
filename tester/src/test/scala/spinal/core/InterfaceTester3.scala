@@ -134,87 +134,103 @@ class BundleInIfTest2 extends SpinalAnyFunSuite{
     }
   }
 }
+object MyDirEnum extends SpinalEnum {
+  val a, b = newElement()
+}
+
 class IMasterSlaveDirDeclareTest extends SpinalAnyFunSuite {
-  test("Test IMasterSlaveDirDeclare") {
+
+  test("IMasterSlaveDirDeclare directions") {
     case class TestInterface() extends Bundle with IMasterSlaveDirDeclare {
-      val testOut = out port Bool()
-      val testIn = in port Bool()
-      val testMaster = master port Stream(Bool())
-      val testSlave = slave port Stream(Bool())
+      // "spaceful" syntax
+      val spacefulOut = out port Bool()
+      val spacefulIn = in port Bool()
+      val spacefulMaster = master port Stream(Bool())
+      val spacefulSlave = slave port Stream(Bool())
+
+      // "braces" syntax
+      val bracesOut = out(Bool())
+      val bracesIn = in(Bool())
+      val bracesMaster = master(Stream(Bool()))
+      val bracesSlave = slave(Stream(Bool()))
+
+      // "short" syntax
+      val shortOut = out Bool ()
+      val shortIn = in UInt (8 bits)
+      val shortMaster = master Stream (Bool())
+      val shortSlave = slave Flow (Bool())
+
+      // factories and remaining overloads
+      val hardTypeIn = in port HardType(Bits(4 bits))
+      val hardTypeMaster = master port HardType(Stream(Bool()))
+      val enumOut = out port MyDirEnum
+      val clonedOut = out cloneOf (shortIn)
+      val vecOut = out port Vec(Bool(), 2)
+      val variadicA, variadicB = Bool()
+      out(variadicA, variadicB)
     }
-    SimConfig.compile(new Component {
+
+    SpinalVerilog(new Component {
+      /** `o`/`i` are the directions seen from the master side, flipped for a slave */
+      def check(itf: TestInterface, asMaster: Boolean): Unit = {
+        val o = if (asMaster) out else in
+        val i = if (asMaster) in else out
+
+        assert(itf.spacefulOut.getDirection == o)
+        assert(itf.spacefulIn.getDirection == i)
+        assert(itf.bracesOut.getDirection == o)
+        assert(itf.bracesIn.getDirection == i)
+        assert(itf.shortOut.getDirection == o)
+        assert(itf.shortIn.getDirection == i)
+        assert(itf.hardTypeIn.getDirection == i)
+        assert(itf.enumOut.getDirection == o)
+        assert(itf.clonedOut.getDirection == o)
+        assert(itf.vecOut(0).getDirection == o)
+        assert(itf.variadicA.getDirection == o)
+        assert(itf.variadicB.getDirection == o)
+
+        for (m <- List(itf.spacefulMaster, itf.bracesMaster, itf.shortMaster, itf.hardTypeMaster)) {
+          assert(m.valid.getDirection == o)
+          assert(m.ready.getDirection == i)
+          assert(m.payload.getDirection == o)
+        }
+        for (s <- List(itf.spacefulSlave, itf.bracesSlave)) {
+          assert(s.valid.getDirection == i)
+          assert(s.ready.getDirection == o)
+          assert(s.payload.getDirection == i)
+        }
+        assert(itf.shortSlave.valid.getDirection == i)
+        assert(itf.shortSlave.payload.getDirection == i)
+      }
+
       val withoutDir = TestInterface()
       withoutDir.assignDontCareToUnasigned()
-      println(withoutDir.testOut.getDirection)
+      assert(withoutDir.spacefulOut.getDirection == null)
+
       val masterInterface = master port TestInterface()
       val slaveInterface = slave port TestInterface()
-      assert(masterInterface.testOut.getDirection == out)
-      assert(masterInterface.testIn.getDirection == in)
-
-      assert(slaveInterface.testOut.getDirection == in)
-      assert(slaveInterface.testIn.getDirection == out)
-
-      assert(masterInterface.testMaster.valid.getDirection == out)
-      assert(masterInterface.testMaster.ready.getDirection == in)
-      assert(masterInterface.testMaster.payload.getDirection == out)
-
-      assert(masterInterface.testSlave.valid.getDirection == in)
-      assert(masterInterface.testSlave.ready.getDirection == out)
-      assert(masterInterface.testSlave.payload.getDirection == in)
-
-
-      assert(slaveInterface.testMaster.valid.getDirection == in)
-      assert(slaveInterface.testMaster.ready.getDirection == out)
-      assert(slaveInterface.testMaster.payload.getDirection == in)
-
-
-      assert(slaveInterface.testSlave.valid.getDirection == out)
-      assert(slaveInterface.testSlave.ready.getDirection == in)
-      assert(slaveInterface.testSlave.payload.getDirection == out)
-
+      check(masterInterface, asMaster = true)
+      check(slaveInterface, asMaster = false)
 
       slaveInterface <> masterInterface
     })
   }
-  test("Test IMasterSlaveDirDeclare apply") {
+
+  test("IMasterSlaveDirDeclare inout") {
     case class TestInterface() extends Bundle with IMasterSlaveDirDeclare {
-      val testOut = out(Bool())
-      val testIn = in(Bool())
-      val testMaster = master(Stream(Bool()))
-      val testSlave = slave(Stream(Bool()))
+      val testOut = out port Bool()
+      val testInout = inout port Analog(Bool())
     }
-    SimConfig.compile(new Component {
-      val withoutDir = TestInterface()
-      withoutDir.assignDontCareToUnasigned()
-      println(withoutDir.testOut.getDirection)
+    SpinalVerilog(new Component {
       val masterInterface = master port TestInterface()
       val slaveInterface = slave port TestInterface()
+
       assert(masterInterface.testOut.getDirection == out)
-      assert(masterInterface.testIn.getDirection == in)
-
       assert(slaveInterface.testOut.getDirection == in)
-      assert(slaveInterface.testIn.getDirection == out)
+      assert(masterInterface.testInout.getDirection == inout)
+      assert(slaveInterface.testInout.getDirection == inout)
 
-      assert(masterInterface.testMaster.valid.getDirection == out)
-      assert(masterInterface.testMaster.ready.getDirection == in)
-      assert(masterInterface.testMaster.payload.getDirection == out)
-
-      assert(masterInterface.testSlave.valid.getDirection == in)
-      assert(masterInterface.testSlave.ready.getDirection == out)
-      assert(masterInterface.testSlave.payload.getDirection == in)
-
-
-      assert(slaveInterface.testMaster.valid.getDirection == in)
-      assert(slaveInterface.testMaster.ready.getDirection == out)
-      assert(slaveInterface.testMaster.payload.getDirection == in)
-
-
-      assert(slaveInterface.testSlave.valid.getDirection == out)
-      assert(slaveInterface.testSlave.ready.getDirection == in)
-      assert(slaveInterface.testSlave.payload.getDirection == out)
-
-
-      slaveInterface <> masterInterface
+      masterInterface.testOut := slaveInterface.testOut
     })
   }
 }

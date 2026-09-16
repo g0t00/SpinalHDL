@@ -1,6 +1,6 @@
 package spinal.lib
 
-import spinal.core.{Data, HardType, IConnectable, IODirection}
+import spinal.core.{Data, HardType, IConnectable, IODirection, IODirectionDeferred}
 import scala.collection.mutable.ArrayBuffer
 import spinal.core
 
@@ -186,45 +186,30 @@ trait IMasterSlaveDirDeclare extends IMasterSlave {
     *  }
     *  ```
     *
-    * @return
+    * The `in`/`out`/`inout` and `master`/`slave` members below shadow the
+    * homonymous global objects and expose the same declaration API; they only
+    * defer the direction until `asMaster()`/`asSlave()` is applied.
     */
-  var directions = ArrayBuffer.empty[() => Unit]
-  trait PortRedirect[Base] {
-    def port[T <: Base](port: T): T
-    def apply[T <: Base](t: T) = port(t)
-  }
-  def out = new PortRedirect[Data] {
-    def port[T <: Data](port: T) = {
-      directions += (() => spinal.core.out(port))
-      port
-    }
-  }
-  def in = new PortRedirect[Data] {
-    def port[T <: Data](port: T) = {
-      directions += (() => spinal.core.in(port))
-      port
-    }
-  }
-  def inout = new PortRedirect[Data] {
-    def port[T <: Data](port: T) = {
-      directions += (() => spinal.core.inout(port))
-      port
-    }
+  private val directions = ArrayBuffer.empty[() => Unit]
 
-  }
-  def slave = new PortRedirect[IMasterSlave] {
-    def port[T <: IMasterSlave](port: T) = {
-      directions += (() => spinal.lib.slave(port))
-      port
-    }
+  private def defer(f: () => Unit): Unit = directions += f
 
-  }
-  def master = new PortRedirect[IMasterSlave] {
-    def port[T <: IMasterSlave](port: T) = {
-      directions += (() => spinal.lib.master(port))
-      port
-    }
+  def in = new IODirectionDeferred(core.in, defer)
+  def out = new IODirectionDeferred(core.out, defer)
+  def inout = new IODirectionDeferred(core.inout, defer)
 
+  def master = new MS {
+    override protected def applyIt[T <: IMasterSlave](i: T): T = {
+      defer(() => spinal.lib.master(i))
+      i
+    }
+  }
+
+  def slave = new MS {
+    override protected def applyIt[T <: IMasterSlave](i: T): T = {
+      defer(() => spinal.lib.slave(i))
+      i
+    }
   }
 
   override final def asMaster(): Unit = directions.foreach(_())
